@@ -1,0 +1,48 @@
+using Cassandra;
+
+const string scbVariable = "ASTRA_SCB_PATH";
+const string tokenVariable = "ASTRA_DB_TOKEN";
+
+string? scbPath = Environment.GetEnvironmentVariable(scbVariable);
+string? token = Environment.GetEnvironmentVariable(tokenVariable);
+
+if (string.IsNullOrWhiteSpace(scbPath) || string.IsNullOrWhiteSpace(token))
+{
+    Console.Error.WriteLine("Missing configuration.");
+    Console.Error.WriteLine($"Set {scbVariable} to the full path of your SCB .zip file.");
+    Console.Error.WriteLine($"Set {tokenVariable} to your Astra application token.");
+    return 2;
+}
+
+if (!File.Exists(scbPath))
+{
+    Console.Error.WriteLine($"SCB file not found: {scbPath}");
+    return 2;
+}
+
+try
+{
+    using ICluster cluster = Cluster.Builder()
+        .WithCloudSecureConnectionBundle(scbPath)
+        .WithCredentials("token", token)
+        .Build();
+
+    using ISession session = cluster.Connect();
+
+    Row row = session
+        .Execute("SELECT cluster_name, release_version FROM system.local")
+        .First();
+
+    Console.WriteLine("SUCCESS: The SCB and token worked.");
+    Console.WriteLine($"Cluster: {row.GetValue<string>("cluster_name")}");
+    Console.WriteLine($"Cassandra version: {row.GetValue<string>("release_version")}");
+    return 0;
+}
+catch (Exception ex)
+{
+    Console.Error.WriteLine("FAILED: Could not connect to Astra DB or run the test query.");
+    Console.Error.WriteLine(ex.Message);
+    Console.Error.WriteLine();
+    Console.Error.WriteLine("Common causes: an invalid/expired token, the SCB belonging to a different database or region, a paused database, or blocked network access.");
+    return 1;
+}

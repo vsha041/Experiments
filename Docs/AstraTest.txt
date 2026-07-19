@@ -1,0 +1,45 @@
+using System;
+using Cassandra;
+
+class Program
+{
+    static void Main(string[] args)
+    {
+        // Path to your Secure Connect Bundle zip file
+        string scbPath = @"C:\path\to\secure-connect-yourdb.zip";
+
+        // Your Astra DB Application Token (starts with "AstraCS:...")
+        string token = "AstraCS:xxxxxxxxxxxxxxxxxxxxxxxx";
+
+        try
+        {
+            Cluster cluster = Cluster.Builder()
+                .WithCloudSecureConnectionBundle(scbPath)
+                .WithCredentials("token", token) // username is literally "token"
+                .Build();
+
+            Console.WriteLine("Connecting to Astra DB...");
+            ISession session = cluster.Connect();
+
+            Console.WriteLine("✅ Connected successfully!");
+
+            // Basic default query to confirm connectivity
+            RowSet result = session.Execute("SELECT release_version FROM system.local");
+
+            foreach (Row row in result)
+            {
+                Console.WriteLine($"Cassandra release version: {row.GetValue<string>("release_version")}");
+            }
+
+            session.Dispose();
+            cluster.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("❌ Connection failed!");
+            Console.WriteLine($"Error: {ex.Message}");
+            if (ex.InnerException != null)
+                Console.WriteLine($"Inner: {ex.InnerException.Message}");
+        }
+    }
+}
