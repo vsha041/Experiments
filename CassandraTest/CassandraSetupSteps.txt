@@ -1,0 +1,59 @@
+# Open powershell as Admin
+
+# install wslc
+wsl.exe --update --pre-release
+
+# Create persistent storage
+$data = "$env:LOCALAPPDATA\wslc\cassandra-data"
+New-Item -ItemType Directory -Force -Path $data
+
+# Run it in Powershell
+wslc run -d `
+  --name cassandra `
+  --hostname cassandra `
+  --cpus 2 `
+  --memory 4G `
+  --publish 9042:9042 `
+  --env CASSANDRA_CLUSTER_NAME=LocalCluster `
+  --volume "${data}:/var/lib/cassandra" `
+  cassandra:5.0.8
+
+# startup logs
+wslc container logs --follow Cassandra
+
+# check status
+wslc container exec cassandra nodetool status
+
+# open Cassandra shell
+wslc container exec -it cassandra cqlsh
+
+# test
+CREATE KEYSPACE demo
+WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};
+
+CREATE TABLE demo.users (
+    id uuid PRIMARY KEY,
+    name text
+);
+
+INSERT INTO demo.users (id, name)
+VALUES (uuid(), 'Octavian');
+
+SELECT * FROM demo.users;
+
+# exit
+EXIT;
+
+# Managing the container
+
+# Stop Cassandra cleanly
+wslc container stop cassandra
+
+# Start it again
+wslc container start cassandra
+
+# Show containers
+wslc container list --all
+
+# Remove the container
+wslc container remove cassandra
