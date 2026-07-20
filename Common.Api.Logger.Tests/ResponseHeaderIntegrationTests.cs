@@ -4,47 +4,47 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
-using Xunit;
+using NUnit.Framework;
 
 namespace Common.Api.Logger.Tests;
 
 
 public sealed class ResponseHeaderIntegrationTests
 {
-    [Fact]
+    [Test]
     public async Task ResponseContainsGeneratedCorrelationIdAndUtcTimestamp()
     {
         using var server = CreateServer();
         using var client = server.CreateClient();
         var beforeRequest = DateTimeOffset.UtcNow;
 
-        using var response = await client.GetAsync("/", new CancellationToken(false));
+        using var response = await client.GetAsync("/");
         var afterResponse = DateTimeOffset.UtcNow;
 
         response.EnsureSuccessStatusCode();
 
-        Assert.True(response.Headers.TryGetValues(
+        Assert.That(response.Headers.TryGetValues(
             CorrelationId.HeaderName,
-            out var correlationValues));
-        var correlationId = Assert.Single(correlationValues);
-        Assert.Matches("^[a-f0-9]{32}$", correlationId);
+            out var correlationValues), Is.True);
+        var correlationId = correlationValues!.Single();
+        Assert.That(correlationId, Does.Match("^[a-f0-9]{32}$"));
 
-        Assert.True(response.Headers.TryGetValues(
+        Assert.That(response.Headers.TryGetValues(
             CorrelationId.TimestampHeaderName,
-            out var timestampValues));
-        var timestampText = Assert.Single(timestampValues);
+            out var timestampValues), Is.True);
+        var timestampText = timestampValues!.Single();
 
-        Assert.True(DateTimeOffset.TryParseExact(
+        Assert.That(DateTimeOffset.TryParseExact(
             timestampText,
             "O",
             CultureInfo.InvariantCulture,
             DateTimeStyles.RoundtripKind,
-            out var timestamp));
-        Assert.Equal(TimeSpan.Zero, timestamp.Offset);
-        Assert.InRange(timestamp, beforeRequest, afterResponse);
+            out var timestamp), Is.True);
+        Assert.That(timestamp.Offset, Is.EqualTo(TimeSpan.Zero));
+        Assert.That(timestamp, Is.InRange(beforeRequest, afterResponse));
     }
 
-    [Fact]
+    [Test]
     public async Task ResponseReturnsIncomingCorrelationId()
     {
         const string incomingCorrelationId = "caller-correlation-id";
@@ -53,13 +53,13 @@ public sealed class ResponseHeaderIntegrationTests
         using var request = new HttpRequestMessage(HttpMethod.Get, "/");
         request.Headers.Add(CorrelationId.HeaderName, incomingCorrelationId);
 
-        using var response = await client.SendAsync(request, new CancellationToken(false));
+        using var response = await client.SendAsync(request);
 
         response.EnsureSuccessStatusCode();
-        Assert.True(response.Headers.TryGetValues(
+        Assert.That(response.Headers.TryGetValues(
             CorrelationId.HeaderName,
-            out var correlationValues));
-        Assert.Equal(incomingCorrelationId, Assert.Single(correlationValues));
+            out var correlationValues), Is.True);
+        Assert.That(correlationValues!.Single(), Is.EqualTo(incomingCorrelationId));
     }
 
     private static TestServer CreateServer()

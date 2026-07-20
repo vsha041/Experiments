@@ -3,14 +3,14 @@ using Common.Api.LoggerV2;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Logging;
-using Xunit;
+using NUnit.Framework;
 
 namespace Common.Api.Logger.Tests
 {
 
     public sealed class CorrelationIdMiddlewareTests
     {
-        [Fact]
+        [Test]
         public async Task InvokeAsync_GeneratesIdAndAddsItEverywhere_WhenHeaderIsMissing()
         {
             var context = CreateContext(out var responseFeature);
@@ -22,7 +22,7 @@ namespace Common.Api.Logger.Tests
             {
                 nextWasCalled = true;
                 scopeIdDuringNext = logger.CurrentCorrelationId;
-                Assert.True(logger.IsScopeActive);
+                Assert.That(logger.IsScopeActive, Is.True);
                 return Task.CompletedTask;
             });
 
@@ -31,31 +31,31 @@ namespace Common.Api.Logger.Tests
             await responseFeature.FireOnStartingAsync();
             var afterResponse = DateTimeOffset.UtcNow;
 
-            var storedId = Assert.IsType<string>(
-                context.Items[CorrelationId.HttpContextItemKey]);
+            var storedId = context.Items[CorrelationId.HttpContextItemKey] as string;
 
-            Assert.True(nextWasCalled);
-            Assert.Matches("^[a-f0-9]{32}$", storedId);
-            Assert.Equal(storedId, scopeIdDuringNext);
-            Assert.Equal(
-                storedId,
-                context.Response.Headers[CorrelationId.HeaderName].ToString());
-            Assert.False(logger.IsScopeActive);
+            Assert.That(nextWasCalled, Is.True);
+            Assert.That(storedId, Is.Not.Null);
+            Assert.That(storedId, Does.Match("^[a-f0-9]{32}$"));
+            Assert.That(scopeIdDuringNext, Is.EqualTo(storedId));
+            Assert.That(
+                context.Response.Headers[CorrelationId.HeaderName].ToString(),
+                Is.EqualTo(storedId));
+            Assert.That(logger.IsScopeActive, Is.False);
 
             var timestampText = context.Response.Headers[
                 CorrelationId.TimestampHeaderName].ToString();
 
-            Assert.True(DateTimeOffset.TryParseExact(
+            Assert.That(DateTimeOffset.TryParseExact(
                 timestampText,
                 "O",
                 CultureInfo.InvariantCulture,
                 DateTimeStyles.RoundtripKind,
-                out var timestamp));
-            Assert.Equal(TimeSpan.Zero, timestamp.Offset);
-            Assert.InRange(timestamp, beforeResponse, afterResponse);
+                out var timestamp), Is.True);
+            Assert.That(timestamp.Offset, Is.EqualTo(TimeSpan.Zero));
+            Assert.That(timestamp, Is.InRange(beforeResponse, afterResponse));
         }
 
-        [Fact]
+        [Test]
         public async Task InvokeAsync_ReusesIncomingCorrelationId()
         {
             const string incomingId = "correlation-from-caller";
@@ -65,20 +65,20 @@ namespace Common.Api.Logger.Tests
 
             var middleware = new CorrelationIdMiddleware(_ =>
             {
-                Assert.Equal(incomingId, logger.CurrentCorrelationId);
+                Assert.That(logger.CurrentCorrelationId, Is.EqualTo(incomingId));
                 return Task.CompletedTask;
             });
 
             await middleware.InvokeAsync(context, logger);
             await responseFeature.FireOnStartingAsync();
 
-            Assert.Equal(incomingId, context.GetCorrelationId());
-            Assert.Equal(
-                incomingId,
-                context.Response.Headers[CorrelationId.HeaderName].ToString());
+            Assert.That(context.GetCorrelationId(), Is.EqualTo(incomingId));
+            Assert.That(
+                context.Response.Headers[CorrelationId.HeaderName].ToString(),
+                Is.EqualTo(incomingId));
         }
 
-        [Fact]
+        [Test]
         public async Task InvokeAsync_GeneratesId_WhenIncomingHeaderIsBlank()
         {
             var context = CreateContext(out var responseFeature);
@@ -89,14 +89,14 @@ namespace Common.Api.Logger.Tests
             await responseFeature.FireOnStartingAsync();
 
             var generatedId = context.GetCorrelationId();
-            Assert.NotNull(generatedId);
-            Assert.Matches("^[a-f0-9]{32}$", generatedId);
-            Assert.Equal(
-                generatedId,
-                context.Response.Headers[CorrelationId.HeaderName].ToString());
+            Assert.That(generatedId, Is.Not.Null);
+            Assert.That(generatedId, Does.Match("^[a-f0-9]{32}$"));
+            Assert.That(
+                context.Response.Headers[CorrelationId.HeaderName].ToString(),
+                Is.EqualTo(generatedId));
         }
 
-        [Fact]
+        [Test]
         public async Task InvokeAsync_GeneratesDifferentIds_ForDifferentRequests()
         {
             var firstContext = CreateContext(out _);
@@ -106,17 +106,17 @@ namespace Common.Api.Logger.Tests
             await middleware.InvokeAsync(firstContext, new ScopeCapturingLogger());
             await middleware.InvokeAsync(secondContext, new ScopeCapturingLogger());
 
-            Assert.NotEqual(
-                firstContext.GetCorrelationId(),
-                secondContext.GetCorrelationId());
+            Assert.That(
+                secondContext.GetCorrelationId(),
+                Is.Not.EqualTo(firstContext.GetCorrelationId()));
         }
 
-        [Fact]
+        [Test]
         public void GetCorrelationId_ReturnsNull_WhenMiddlewareHasNotRun()
         {
             var context = new DefaultHttpContext();
 
-            Assert.Null(context.GetCorrelationId());
+            Assert.That(context.GetCorrelationId(), Is.Null);
         }
 
         private static DefaultHttpContext CreateContext(out ControllableResponseFeature responseFeature)
@@ -132,7 +132,7 @@ namespace Common.Api.Logger.Tests
             features.Set<IHttpResponseBodyFeature>(new StreamResponseBodyFeature(responseFeature.Body));
 
             var defaultHttpContext = new DefaultHttpContext(features);
-            
+
             return defaultHttpContext;
         }
 
@@ -144,8 +144,11 @@ namespace Common.Api.Logger.Tests
 
             public IDisposable? BeginScope<TState>(TState state) where TState : notnull
             {
-                var properties = Assert.IsAssignableFrom<
-                    IEnumerable<KeyValuePair<string, object?>>>(state);
+                Assert.That(
+                    state,
+                    Is.AssignableTo<IEnumerable<KeyValuePair<string, object?>>>());
+                var properties =
+                    (IEnumerable<KeyValuePair<string, object?>>)(object)state;
 
                 CurrentCorrelationId = properties
                     .Single(pair => pair.Key == CorrelationId.LogPropertyName)
@@ -207,5 +210,6 @@ namespace Common.Api.Logger.Tests
             }
         }
     }
+
 
 }
