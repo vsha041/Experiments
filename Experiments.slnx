@@ -1,4 +1,8 @@
 <Solution>
   <Project Path="CassandraTest/CassandraTest.csproj" Id="9d700661-a51f-4ef4-a522-e092b9c036a5" />
+  <Project Path="Common.Api.Logger.Test/Common.Api.Logger.Test.csproj" Id="aff2bc46-6f64-4346-aba6-884cab19f67e" />
+  <Project Path="Common.Api.Logger.Tests/Common.Api.Logger.Tests.csproj" Id="06403d7e-7538-42fe-a14f-5b7f7a44479f" />
+  <Project Path="Common.Api.Logger/Common.Api.Logger.csproj" Id="c4872a67-07df-4c8b-8b58-1d1500bac559" />
+  <Project Path="Common.Api.LoggerV2/Common.Api.LoggerV2.csproj" Id="2ac78265-bd07-4767-a009-ae171d31a72a" />
   <Project Path="Encryption/Encryption.csproj" Id="e05bdd58-af61-471a-a41b-ac43a479166d" />
 </Solution>
