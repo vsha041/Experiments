@@ -1,56 +1,46 @@
 ﻿using Microsoft.Data.SqlClient;
 
+using Shared.ResponseHeaders;
+
 namespace Customer
 {
     public sealed class CustomerRepository : ICustomerRepository
     {
         private readonly string _connectionString;
+        private readonly IDatabaseResponseMetadataContext _metadataContext;
 
-        public CustomerRepository(IConfiguration configuration)
+        public CustomerRepository(
+            IConfiguration configuration,
+            IDatabaseResponseMetadataContext metadataContext)
         {
             _connectionString = configuration.GetConnectionString("CustomerDatabase")
                 ?? throw new InvalidOperationException(
                     "Connection string 'CustomerDatabase' was not found.");
+            _metadataContext = metadataContext;
         }
 
         public async Task<CustomerViewModel> GetAllAsync(
             CancellationToken cancellationToken = default)
         {
-            const string sql = """
-            SELECT TOP 1
-                [Id],
-                [FirstName],
-                [CorrelationId],
-                [DateTime],
-                [LastName]
-            FROM [dbo].[Customer]
-            ORDER BY [Id];
-            """;
-
             await using var connection = new SqlConnection(_connectionString);
-            await using var command = new SqlCommand(sql, connection);
+            var row = await connection.QuerySingleWithMetadataAsync<CustomerStoredProcedureRow>(
+                "dbo.GetCustomer",
+                _metadataContext,
+                cancellationToken: cancellationToken);
 
-            await connection.OpenAsync(cancellationToken);
-
-            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-
-            var idOrdinal = reader.GetOrdinal("Id");
-            var firstNameOrdinal = reader.GetOrdinal("FirstName");
-            var correlationIdOrdinal = reader.GetOrdinal("CorrelationId"); // this needs to go to response header but not the API caller
-            var dateTimeOrdinal = reader.GetOrdinal("DateTime"); // this needs to go to response header but not the API caller
-            var lastNameOrdinal = reader.GetOrdinal("LastName");
-
-            while (await reader.ReadAsync(cancellationToken))
+            return new CustomerViewModel
             {
-                return new CustomerViewModel
-                {
-                    Id = reader.GetInt32(idOrdinal),
-                    FirstName = reader.GetString(firstNameOrdinal),
-                    LastName = reader.GetString(lastNameOrdinal)
-                };
-            }
+                Id = row.Id,
+                FirstName = row.FirstName,
+                LastName = row.LastName
+            };
+        }
 
-            return null;
+        private sealed class CustomerStoredProcedureRow : HeaderMetadata
+        {
+            public int Id { get; set; }
+            public string FirstName { get; set; } = string.Empty;
+            public string LastName { get; set; } = string.Empty;
         }
     }
 }

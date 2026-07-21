@@ -1,17 +1,13 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
-
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
-
   <ItemGroup>
-    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.2" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
-
   <ItemGroup>
-    <ProjectReference Include="..\Shared.ResponseHeaders\Shared.ResponseHeaders.csproj" />
+    <PackageReference Include="Dapper" Version="2.1.66" />
   </ItemGroup>
-
 </Project>

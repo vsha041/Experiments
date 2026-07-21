@@ -1,12 +1,6 @@
 ﻿namespace Student
 {
-    public class HeaderMetadata
-    {
-        public Guid CorrelationId { get; set; }
-        public DateTime DateTime { get; set; }
-    }
-
-    public sealed class Student : HeaderMetadata
+    public sealed class Student
     {
         public int Id { get; set; }
         public string FullName { get; set; } = string.Empty;

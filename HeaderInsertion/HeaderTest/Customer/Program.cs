@@ -1,3 +1,5 @@
+using Shared.ResponseHeaders;
+
 namespace Customer
 {
     public class Program
@@ -9,12 +11,14 @@ namespace Customer
             // Add services to the container.
 
             builder.Services.AddControllers();
+            builder.Services.AddDatabaseResponseMetadata();
             builder.Services.AddScoped<ICustomerRepository, CustomerRepository>();
 
             var app = builder.Build();
 
             // Configure the HTTP request pipeline.
 
+            app.UseDatabaseResponseMetadata();
             app.UseAuthorization();
 
 

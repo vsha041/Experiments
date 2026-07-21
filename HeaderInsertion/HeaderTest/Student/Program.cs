@@ -1,4 +1,5 @@
 using static Student.StudentRepository;
+using Shared.ResponseHeaders;
 
 namespace Student
 {
@@ -11,12 +12,14 @@ namespace Student
             // Add services to the container.
 
             builder.Services.AddControllers();
+            builder.Services.AddDatabaseResponseMetadata();
             builder.Services.AddScoped<IStudentRepository, StudentRepository>();
 
             var app = builder.Build();
 
             // Configure the HTTP request pipeline.
 
+            app.UseDatabaseResponseMetadata();
             app.UseAuthorization();
 
 
