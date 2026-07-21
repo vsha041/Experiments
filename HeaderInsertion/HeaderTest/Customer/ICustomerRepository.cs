@@ -2,6 +2,6 @@
 {
     public interface ICustomerRepository
     {
-        Task<Customer> GetAllAsync(CancellationToken cancellationToken = default);
+        Task<CustomerViewModel> GetAllAsync(CancellationToken cancellationToken = default);
     }
 }

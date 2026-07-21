@@ -4,7 +4,7 @@ namespace Student;
 
 public interface IStudentRepository
 {
-    Task<Customer.Student> GetAllAsync(CancellationToken cancellationToken = default);
+    Task<StudentViewModel> GetAllAsync(CancellationToken cancellationToken = default);
 }
 
 public sealed class StudentRepository : IStudentRepository
@@ -18,7 +18,7 @@ public sealed class StudentRepository : IStudentRepository
                                 "Connection string 'CustomerDatabase' was not found.");
     }
 
-    public async Task<Customer.Student> GetAllAsync(
+    public async Task<StudentViewModel> GetAllAsync(
         CancellationToken cancellationToken = default)
     {
         const string sql = """
@@ -35,18 +35,16 @@ public sealed class StudentRepository : IStudentRepository
 
         var idOrdinal = reader.GetOrdinal("Id");
         var fullNameOrdinal = reader.GetOrdinal("FullName");
-        var correlationIdOrdinal = reader.GetOrdinal("CorrelationId");
-        var dateTimeOrdinal = reader.GetOrdinal("DateTime");
+        var correlationIdOrdinal = reader.GetOrdinal("CorrelationId"); // this needs to go to response header but not the API caller
+        var dateTimeOrdinal = reader.GetOrdinal("DateTime"); // this needs to go to response header but not the API caller
         var addressOrdinal = reader.GetOrdinal("Address");
 
         while (await reader.ReadAsync(cancellationToken))
         {
-            return new Customer.Student
+            return new StudentViewModel
             {
                 Id = reader.GetInt32(idOrdinal),
                 FullName = reader.GetString(fullNameOrdinal),
-                CorrelationId = reader.GetGuid(correlationIdOrdinal),
-                DateTime = reader.GetDateTime(dateTimeOrdinal),
                 Address = reader.GetString(addressOrdinal)
             };
         }

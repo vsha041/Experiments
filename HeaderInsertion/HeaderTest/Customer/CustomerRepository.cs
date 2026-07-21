@@ -13,7 +13,7 @@ namespace Customer
                     "Connection string 'CustomerDatabase' was not found.");
         }
 
-        public async Task<Customer> GetAllAsync(
+        public async Task<CustomerViewModel> GetAllAsync(
             CancellationToken cancellationToken = default)
         {
             const string sql = """
@@ -36,18 +36,16 @@ namespace Customer
 
             var idOrdinal = reader.GetOrdinal("Id");
             var firstNameOrdinal = reader.GetOrdinal("FirstName");
-            var correlationIdOrdinal = reader.GetOrdinal("CorrelationId");
-            var dateTimeOrdinal = reader.GetOrdinal("DateTime");
+            var correlationIdOrdinal = reader.GetOrdinal("CorrelationId"); // this needs to go to response header but not the API caller
+            var dateTimeOrdinal = reader.GetOrdinal("DateTime"); // this needs to go to response header but not the API caller
             var lastNameOrdinal = reader.GetOrdinal("LastName");
 
             while (await reader.ReadAsync(cancellationToken))
             {
-                return new Customer
+                return new CustomerViewModel
                 {
                     Id = reader.GetInt32(idOrdinal),
                     FirstName = reader.GetString(firstNameOrdinal),
-                    CorrelationId = reader.GetGuid(correlationIdOrdinal),
-                    DateTime = reader.GetDateTime(dateTimeOrdinal),
                     LastName = reader.GetString(lastNameOrdinal)
                 };
             }

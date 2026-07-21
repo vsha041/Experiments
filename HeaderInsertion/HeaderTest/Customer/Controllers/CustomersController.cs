@@ -14,8 +14,8 @@ public sealed class CustomersController : ControllerBase
     }
 
     [HttpGet]
-    [ProducesResponseType(typeof(IReadOnlyList<global::Customer.Customer>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IReadOnlyList<global::Customer.Customer>>> GetCustomers(
+    [ProducesResponseType(typeof(Customer), StatusCodes.Status200OK)]
+    public async Task<ActionResult<Customer>> GetCustomers(
         CancellationToken cancellationToken)
     {
         var customers = (await _customerRepository.GetAllAsync(cancellationToken));

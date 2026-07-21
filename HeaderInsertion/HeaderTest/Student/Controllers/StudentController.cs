@@ -14,8 +14,8 @@ public sealed class StudentController : ControllerBase
     }
 
     [HttpGet]
-    [ProducesResponseType(typeof(IReadOnlyList<global::Customer.Student>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<global::Customer.Student>> GetStudents(
+    [ProducesResponseType(typeof(StudentViewModel), StatusCodes.Status200OK)]
+    public async Task<ActionResult<StudentViewModel>> GetStudents(
         CancellationToken cancellationToken)
     {
         var students = (await _studentRepository.GetAllAsync(cancellationToken));
