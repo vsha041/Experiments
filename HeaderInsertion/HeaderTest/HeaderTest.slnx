@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Customer/Customer.csproj" />
+  <Project Path="Student/Student.csproj" Id="7cfe508a-3221-4a33-969a-f352d5e97612" />
+</Solution>
