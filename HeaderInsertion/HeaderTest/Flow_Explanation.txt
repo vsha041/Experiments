@@ -1,0 +1,78 @@
+Here is the request flow now.
+The API receives a request
+For example:
+GET /api/customers
+CustomersController calls:
+await _customerRepository.GetAllAsync(cancellationToken);
+The controller contains no response-header logic.
+The repository executes the stored procedure
+The Customer repository calls:
+var row =
+    await connection.QuerySingleWithMetadataAsync<CustomerStoredProcedureRow>(
+        "dbo.GetCustomer",
+        _metadataContext,
+        cancellationToken: cancellationToken);
+CustomerStoredProcedureRow represents the complete database row:
+private sealed class CustomerStoredProcedureRow : HeaderMetadata
+{
+    public int Id { get; set; }
+    public string FirstName { get; set; }
+    public string LastName { get; set; }
+}
+Because it inherits from HeaderMetadata, it also has:
+public Guid CorrelationId { get; set; }
+public DateTime DateTime { get; set; }
+Dapper matches the stored procedure’s returned column names to these properties.
+The shared helper captures the metadata
+Inside QuerySingleWithMetadataAsync, Dapper executes the procedure:
+var row = await connection.QuerySingleAsync<TRow>(...);
+It then stores the metadata in the request-scoped context:
+metadataContext.Capture(row);
+This context is scoped, so every HTTP request receives its own separate metadata storage. Concurrent requests do not share values.
+The repository creates the response body
+The repository deliberately copies only the business properties into the ViewModel:
+return new CustomerViewModel
+{
+    Id = row.Id,
+    FirstName = row.FirstName,
+    LastName = row.LastName
+};
+Therefore, CorrelationId and DateTime do not appear in the JSON response body.
+The body remains something like:
+{
+  "id": 1,
+  "firstName": "Jane",
+  "lastName": "Smith"
+}
+The middleware adds the response headers
+The middleware registered in Program.cs runs for every controller:
+app.UseDatabaseResponseMetadata();
+It registers an OnStarting callback. That callback runs immediately before ASP.NET Core sends the response:
+if (metadataContext.Metadata is { } metadata)
+{
+    response.Headers["CorrelationId"] =
+        metadata.CorrelationId.ToString("D");
+
+    response.Headers["DateTime"] =
+        metadata.DateTime.ToString("O");
+}
+The final response therefore looks like:
+HTTP/1.1 200 OK
+Content-Type: application/json
+CorrelationId: 3f59b034-fac1-47e0-8c45-80e3e5909073
+DateTime: 2026-07-21T14:32:18.1234567
+
+{
+  "id": 1,
+  "firstName": "Jane",
+  "lastName": "Smith"
+}
+In short:
+Controller
+   → Repository
+   → Shared stored-procedure helper
+   → Complete database row
+   → Store metadata in request context
+   → Return ViewModel without metadata
+   → Middleware adds metadata to response headers
+The Student API works identically. For future APIs, their stored-procedure result type inherits HeaderMetadata, and their repository uses QuerySingleWithMetadataAsync. The controller and middleware behavior then happens automatically.

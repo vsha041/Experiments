@@ -1,0 +1,19 @@
+HeaderProperties is a cache shared by every HTTP request:
+private static readonly ConcurrentDictionary<Type, HeaderProperty[]>
+    HeaderProperties = new();
+It maps a metadata type to the properties carrying AddApiResponseHeader:
+CustomerStoredProcedureRow → CorrelationId property
+StudentStoredProcedureRow  → CorrelationId property
+Because it is static, all concurrent requests use the same cache. Two requests could attempt to add entries simultaneously:
+HeaderProperties.GetOrAdd(metadata.GetType(), FindHeaderProperties);
+A normal Dictionary is not safe when one thread might write while another thread reads or writes. Under load, simultaneous access could cause exceptions, corrupted internal state, or unreliable results.
+ConcurrentDictionary makes GetOrAdd thread-safe without requiring manual locking.
+A normal dictionary would be safe only if it were fully populated once during application startup and never modified afterward. For example:
+private static readonly IReadOnlyDictionary<Type, HeaderProperty[]> HeaderProperties =
+    CreateAllMappingsAtStartup();
+That is difficult here because the shared middleware does not know every future stored-procedure result type during startup. It discovers each type when that type is first returned.
+One nuance: ConcurrentDictionary.GetOrAdd may invoke FindHeaderProperties more than once when concurrent requests encounter the same type for the first time. Only one resulting array is stored, however. That is harmless because reflection discovery has no side effects.
+So ConcurrentDictionary is used because the cache is:
+Shared across requests.
+Populated lazily.
+Read and potentially updated by several request threads simultaneously.
