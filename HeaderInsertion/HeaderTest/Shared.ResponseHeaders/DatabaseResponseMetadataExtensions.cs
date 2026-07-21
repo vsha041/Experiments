@@ -6,19 +6,9 @@ namespace Shared.ResponseHeaders;
 public static class DatabaseResponseMetadataExtensions
 {
     public static IServiceCollection AddDatabaseResponseMetadata(
-        this IServiceCollection services,
-        Action<DatabaseResponseMetadataOptions>? configure = null)
+        this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
-
-        if (configure is null)
-        {
-            services.AddOptions<DatabaseResponseMetadataOptions>();
-        }
-        else
-        {
-            services.Configure(configure);
-        }
 
         services.AddScoped<IDatabaseResponseMetadataContext, DatabaseResponseMetadataContext>();
         return services;
