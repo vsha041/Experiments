@@ -10,7 +10,7 @@ public static class DatabaseResponseMetadataExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.AddScoped<IDatabaseResponseMetadataContext, DatabaseResponseMetadataContext>();
+        //services.AddScoped<IDatabaseResponseMetadataContext, DatabaseResponseMetadataContext>();
         return services;
     }
 

@@ -13,7 +13,7 @@ namespace Customer
             builder.Services.AddControllers();
             builder.Services.AddDatabaseResponseMetadata();
             builder.Services.AddScoped<ICustomerRepository, CustomerRepository>();
-
+            builder.Services.AddHttpContextAccessor();
             var app = builder.Build();
 
             // Configure the HTTP request pipeline.

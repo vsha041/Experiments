@@ -10,12 +10,11 @@ internal sealed class DatabaseResponseMetadataMiddleware(RequestDelegate next)
     private static readonly ConcurrentDictionary<Type, HeaderProperty[]> HeaderProperties = new();
 
     public Task InvokeAsync(
-        HttpContext httpContext,
-        IDatabaseResponseMetadataContext metadataContext)
+        HttpContext httpContext)
     {
         httpContext.Response.OnStarting(() =>
         {
-            if (metadataContext.Metadata is { } metadata)
+            if (httpContext.Items.TryGetValue("ApiResponseHeaders", out var metadata) && metadata != null)
             {
                 var properties = HeaderProperties.GetOrAdd(
                     metadata.GetType(),

@@ -7,16 +7,17 @@ namespace Customer
     public sealed class CustomerRepository : ICustomerRepository
     {
         private readonly string _connectionString;
-        private readonly IDatabaseResponseMetadataContext _metadataContext;
+        private readonly IHttpContextAccessor _httpContextAccessor;
+        //private readonly IDatabaseResponseMetadataContext _metadataContext;
 
         public CustomerRepository(
             IConfiguration configuration,
-            IDatabaseResponseMetadataContext metadataContext)
+            IHttpContextAccessor httpContextAccessor)
         {
             _connectionString = configuration.GetConnectionString("CustomerDatabase")
                 ?? throw new InvalidOperationException(
                     "Connection string 'CustomerDatabase' was not found.");
-            _metadataContext = metadataContext;
+            _httpContextAccessor = httpContextAccessor;
         }
 
         public async Task<CustomerViewModel> GetAllAsync(
@@ -25,7 +26,7 @@ namespace Customer
             await using var connection = new SqlConnection(_connectionString);
             var row = await connection.QuerySingleWithMetadataAsync<CustomerStoredProcedureRow>(
                 "dbo.GetCustomer",
-                _metadataContext,
+                _httpContextAccessor.HttpContext,
                 cancellationToken: cancellationToken);
 
             return new CustomerViewModel
