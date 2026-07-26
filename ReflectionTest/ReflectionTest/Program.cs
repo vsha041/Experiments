@@ -6,7 +6,8 @@
         {
             var metadata = new Model
             {
-                Name = "cow"
+                Name = "cow",
+                Age = "123"
             };
 
             //var metadata2 = new List<Model>();
@@ -38,5 +39,10 @@
     {
         [AddApiResponseHeader("crocodile")]
         public string? Name { get; set; }
+
+        [AddApiResponseHeader("kangaroo")]
+        public string? Age { get; set; }
+
+        public string? Voice { get; set; }
     }
 }
