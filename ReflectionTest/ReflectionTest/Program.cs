@@ -9,16 +9,11 @@
                 Name = "cow",
                 Age = "123"
             };
+            Solve(metadata);
+        }
 
-            //var metadata2 = new List<Model>();
-            //metadata2.Add(new Model()
-            //{
-            //    Name = "one"
-            //});
-            //metadata2.Add(new Model()
-            //{
-            //    Name = "two"
-            //});
+        private static void Solve(Model metadata)
+        {
             var properties = ReflectionHelper.HeaderProperties.GetOrAdd(
                 metadata.GetType(),
                 ReflectionHelper.FindHeaderProperties);
