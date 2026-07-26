@@ -4,27 +4,35 @@
     {
         static void Main(string[] args)
         {
-            var metadata = new Model
+            var models = new List<Model>
             {
-                Name = "cow",
-                Age = "123"
+                new() { Name = "cow", Age = "123" },
+                new() { Name = "dog", Age = "456", Voice = "bark" }
             };
-            Solve(metadata);
+            Solve(models);
         }
 
-        private static void Solve(Model metadata)
+        private static void Solve<T>(List<T> models)
         {
             var properties = ReflectionHelper.HeaderProperties.GetOrAdd(
-                metadata.GetType(),
+                typeof(T),
                 ReflectionHelper.FindHeaderProperties);
 
-            foreach (var property in properties)
+            foreach (var model in models)
             {
-                var value = property.Property.GetValue(metadata);
-                if (value is not null)
+                if (model is null)
                 {
-                    var result = ReflectionHelper.FormatHeaderValue(value);
-                    Console.WriteLine($"{property.HeaderName} - {result}");
+                    continue;
+                }
+
+                foreach (var property in properties)
+                {
+                    var value = property.Property.GetValue(model);
+                    if (value is not null)
+                    {
+                        var result = ReflectionHelper.FormatHeaderValue(value);
+                        Console.WriteLine($"{property.HeaderName} - {result}");
+                    }
                 }
             }
         }

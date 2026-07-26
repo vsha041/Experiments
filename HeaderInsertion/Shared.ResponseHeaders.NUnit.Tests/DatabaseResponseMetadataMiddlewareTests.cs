@@ -278,4 +278,185 @@ public class DatabaseResponseMetadataMiddlewareTests
             Assert.That(context.Response.Headers["x-readable"].ToString(), Is.EqualTo("hidden"));
         });
     }
+
+    private sealed class NameMetadata
+    {
+        [AddApiResponseHeader("x-name")]
+        public string? Name { get; set; }
+
+        [AddApiResponseHeader("x-count")]
+        public int Count { get; set; }
+    }
+
+    [Test]
+    public async Task Invoke_WithListMetadata_CombinesPropertyValuesWithPipeSeparator()
+    {
+        var (context, responseFeature) = CreateContext();
+        context.Items["ApiResponseHeaders"] = new List<NameMetadata>
+        {
+            new() { Name = "alpha", Count = 1 },
+            new() { Name = "beta", Count = 2 },
+            new() { Name = "gamma", Count = 3 }
+        };
+
+        await RunMiddlewareAsync(context, responseFeature);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(
+                context.Response.Headers["x-name"].ToString(),
+                Is.EqualTo("alpha|beta|gamma"));
+            Assert.That(
+                context.Response.Headers["x-count"].ToString(),
+                Is.EqualTo("1|2|3"));
+        });
+    }
+
+    [Test]
+    public async Task Invoke_WithListMetadata_FormatsEachItemUsingInvariantCulture()
+    {
+        var (context, responseFeature) = CreateContext();
+        var id1 = Guid.NewGuid();
+        var id2 = Guid.NewGuid();
+        var date1 = new DateTime(2030, 1, 2, 3, 4, 5, DateTimeKind.Utc);
+        var date2 = new DateTime(2031, 6, 7, 8, 9, 10, DateTimeKind.Utc);
+        context.Items["ApiResponseHeaders"] = new List<HeaderMetadata>
+        {
+            new() { CorrelationId = id1, DateTime = date1 },
+            new() { CorrelationId = id2, DateTime = date2 }
+        };
+
+        var previousCulture = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = new CultureInfo("fr-FR");
+
+            await RunMiddlewareAsync(context, responseFeature);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(
+                    context.Response.Headers["bank-correlation-id"].ToString(),
+                    Is.EqualTo($"{id1:D}|{id2:D}"));
+                Assert.That(
+                    context.Response.Headers["bank-date-time"].ToString(),
+                    Is.EqualTo(
+                        date1.ToString("O", CultureInfo.InvariantCulture)
+                        + "|"
+                        + date2.ToString("O", CultureInfo.InvariantCulture)));
+            });
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previousCulture;
+        }
+    }
+
+    [Test]
+    public async Task Invoke_WithListMetadata_SkipsNullPropertyValues()
+    {
+        var (context, responseFeature) = CreateContext();
+        context.Items["ApiResponseHeaders"] = new List<NullableMetadata>
+        {
+            new() { Optional = null, Required = "first" },
+            new() { Optional = "middle", Required = "second" },
+            new() { Optional = null, Required = "third" }
+        };
+
+        await RunMiddlewareAsync(context, responseFeature);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(
+                context.Response.Headers["x-optional"].ToString(),
+                Is.EqualTo("middle"));
+            Assert.That(
+                context.Response.Headers["x-required"].ToString(),
+                Is.EqualTo("first|second|third"));
+        });
+    }
+
+    [Test]
+    public async Task Invoke_WithListMetadata_WithSingleItem_WritesUnjoinedValue()
+    {
+        var (context, responseFeature) = CreateContext();
+        context.Items["ApiResponseHeaders"] = new List<NameMetadata>
+        {
+            new() { Name = "solo", Count = 7 }
+        };
+
+        await RunMiddlewareAsync(context, responseFeature);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(context.Response.Headers["x-name"].ToString(), Is.EqualTo("solo"));
+            Assert.That(context.Response.Headers["x-count"].ToString(), Is.EqualTo("7"));
+        });
+    }
+
+    [Test]
+    public async Task Invoke_WithEmptyListMetadata_DoesNotAddHeaders()
+    {
+        var (context, responseFeature) = CreateContext();
+        context.Items["ApiResponseHeaders"] = new List<NameMetadata>();
+
+        await RunMiddlewareAsync(context, responseFeature);
+
+        Assert.That(context.Response.Headers, Is.Empty);
+    }
+
+    [Test]
+    public async Task Invoke_WithListMetadata_WhereAllPropertyValuesAreNull_DoesNotAddHeader()
+    {
+        var (context, responseFeature) = CreateContext();
+        context.Items["ApiResponseHeaders"] = new List<NullableMetadata>
+        {
+            new() { Optional = null, Required = "a" },
+            new() { Optional = null, Required = "b" }
+        };
+
+        await RunMiddlewareAsync(context, responseFeature);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(context.Response.Headers.ContainsKey("x-optional"), Is.False);
+            Assert.That(
+                context.Response.Headers["x-required"].ToString(),
+                Is.EqualTo("a|b"));
+        });
+    }
+
+    [Test]
+    public async Task Invoke_WithArrayMetadata_CombinesPropertyValuesWithPipeSeparator()
+    {
+        var (context, responseFeature) = CreateContext();
+        context.Items["ApiResponseHeaders"] = new[]
+        {
+            new NameMetadata { Name = "one", Count = 10 },
+            new NameMetadata { Name = "two", Count = 20 }
+        };
+
+        await RunMiddlewareAsync(context, responseFeature);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(context.Response.Headers["x-name"].ToString(), Is.EqualTo("one|two"));
+            Assert.That(context.Response.Headers["x-count"].ToString(), Is.EqualTo("10|20"));
+        });
+    }
+
+    [Test]
+    public async Task Invoke_WithListOfTypeHavingNoAttributedProperties_DoesNotAddHeaders()
+    {
+        var (context, responseFeature) = CreateContext();
+        context.Items["ApiResponseHeaders"] = new List<NoHeaderMetadata>
+        {
+            new(),
+            new()
+        };
+
+        await RunMiddlewareAsync(context, responseFeature);
+
+        Assert.That(context.Response.Headers, Is.Empty);
+    }
 }

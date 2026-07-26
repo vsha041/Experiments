@@ -11,7 +11,6 @@ public static class StoredProcedureExtensions
         this DbConnection connection,
         string storedProcedure,
         HttpContext context,
-        //IDatabaseResponseMetadataContext metadataContext,
         object? parameters = null,
         CancellationToken cancellationToken = default)
         where TRow : HeaderMetadata
@@ -20,15 +19,37 @@ public static class StoredProcedureExtensions
         ArgumentException.ThrowIfNullOrWhiteSpace(storedProcedure);
         //ArgumentNullException.ThrowIfNull(metadataContext);
 
-        var row = await connection.QuerySingleAsync<TRow>(
+        TRow row = await connection.QuerySingleAsync<TRow>(
             new CommandDefinition(
                 storedProcedure,
                 parameters,
                 commandType: CommandType.StoredProcedure,
                 cancellationToken: cancellationToken));
         context.Items ??= new Dictionary<object, object?>();
-        context.Items.Add("ApiResponseHeaders", row);
-        //metadataContext.Capture(row);
+        context.Items.Add("ApiResponseHeaders", new List<TRow> {row});
         return row;
+    }
+
+    public static async Task<IReadOnlyList<TRow>> QueryWithMetadataAsync<TRow>(
+        this DbConnection connection,
+        string storedProcedure,
+        HttpContext context,
+        object? parameters = null,
+        CancellationToken cancellationToken = default)
+        where TRow : HeaderMetadata
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentException.ThrowIfNullOrWhiteSpace(storedProcedure);
+
+        var rows = (await connection.QueryAsync<TRow>(
+            new CommandDefinition(
+                storedProcedure,
+                parameters,
+                commandType: CommandType.StoredProcedure,
+                cancellationToken: cancellationToken))).AsList();
+
+        context.Items ??= new Dictionary<object, object?>();
+        context.Items.Add("ApiResponseHeaders", rows);
+        return rows;
     }
 }

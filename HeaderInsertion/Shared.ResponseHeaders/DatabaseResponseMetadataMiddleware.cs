@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Concurrent;
 using System.Globalization;
 using System.Reflection;
@@ -16,18 +17,13 @@ internal sealed class DatabaseResponseMetadataMiddleware(RequestDelegate next)
         {
             if (httpContext.Items.TryGetValue("ApiResponseHeaders", out var metadata) && metadata != null)
             {
-                var properties = HeaderProperties.GetOrAdd(
-                    metadata.GetType(),
-                    FindHeaderProperties);
-
-                foreach (var property in properties)
+                if (TryGetItems(metadata, out var items, out var elementType))
                 {
-                    var value = property.Property.GetValue(metadata);
-                    if (value is not null)
-                    {
-                        httpContext.Response.Headers[property.HeaderName] =
-                            FormatHeaderValue(value);
-                    }
+                    ApplyCollectionHeaders(httpContext, items, elementType);
+                }
+                else
+                {
+                    ApplySingleHeaders(httpContext, metadata);
                 }
             }
 
@@ -35,6 +31,89 @@ internal sealed class DatabaseResponseMetadataMiddleware(RequestDelegate next)
         });
 
         return next(httpContext);
+    }
+
+    private static void ApplySingleHeaders(HttpContext httpContext, object metadata)
+    {
+        var properties = HeaderProperties.GetOrAdd(
+            metadata.GetType(),
+            FindHeaderProperties);
+
+        foreach (var property in properties)
+        {
+            var value = property.Property.GetValue(metadata);
+            if (value is not null)
+            {
+                httpContext.Response.Headers[property.HeaderName] =
+                    FormatHeaderValue(value);
+            }
+        }
+    }
+
+    private static void ApplyCollectionHeaders(
+        HttpContext httpContext,
+        IEnumerable items,
+        Type elementType)
+    {
+        var properties = HeaderProperties.GetOrAdd(elementType, FindHeaderProperties);
+        if (properties.Length == 0)
+        {
+            return;
+        }
+
+        var valuesByHeader = properties.ToDictionary(p => p.HeaderName, _ => new List<string>());
+
+        foreach (var item in items)
+        {
+            if (item is null)
+            {
+                continue;
+            }
+
+            foreach (var property in properties)
+            {
+                var value = property.Property.GetValue(item);
+                if (value is not null)
+                {
+                    valuesByHeader[property.HeaderName].Add(FormatHeaderValue(value));
+                }
+            }
+        }
+
+        foreach (var property in properties)
+        {
+            var values = valuesByHeader[property.HeaderName];
+            if (values.Count > 0)
+            {
+                httpContext.Response.Headers[property.HeaderName] = string.Join("|", values);
+            }
+        }
+    }
+
+    private static bool TryGetItems(object metadata, out IEnumerable items, out Type elementType)
+    {
+        if (metadata is not IEnumerable enumerable || metadata is string)
+        {
+            items = default!;
+            elementType = default!;
+            return false;
+        }
+
+        var collectionType = metadata.GetType();
+        var enumerableInterface = collectionType
+            .GetInterfaces()
+            .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IEnumerable<>));
+
+        if (enumerableInterface is null)
+        {
+            items = default!;
+            elementType = default!;
+            return false;
+        }
+
+        items = enumerable;
+        elementType = enumerableInterface.GetGenericArguments()[0];
+        return true;
     }
 
     private static HeaderProperty[] FindHeaderProperties(Type metadataType) =>

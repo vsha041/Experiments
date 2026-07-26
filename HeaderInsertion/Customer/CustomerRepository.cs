@@ -24,16 +24,21 @@ namespace Customer
             CancellationToken cancellationToken = default)
         {
             await using var connection = new SqlConnection(_connectionString);
-            var row = await connection.QuerySingleWithMetadataAsync<CustomerStoredProcedureRow>(
-                "dbo.GetCustomer",
+            //var row = await connection.QuerySingleWithMetadataAsync<CustomerStoredProcedureRow>(
+            //    "dbo.GetCustomer",
+            //    _httpContextAccessor.HttpContext,
+            //    cancellationToken: cancellationToken);
+
+            var rows = await connection.QueryWithMetadataAsync<CustomerStoredProcedureRow>(
+                "dbo.GetAllCustomers",
                 _httpContextAccessor.HttpContext,
                 cancellationToken: cancellationToken);
 
             return new CustomerViewModel
             {
-                Id = row.Id,
-                FirstName = row.FirstName,
-                LastName = row.LastName
+                Id = rows[0].Id,
+                FirstName = rows[0].FirstName,
+                LastName = rows[0].LastName
             };
         }
 
