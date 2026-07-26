@@ -8,6 +8,8 @@ namespace Shared.ResponseHeaders;
 
 internal sealed class DatabaseResponseMetadataMiddleware(RequestDelegate next)
 {
+    private const int MaxCollectionItems = 10;
+
     private static readonly ConcurrentDictionary<Type, HeaderProperty[]> HeaderProperties = new();
 
     public Task InvokeAsync(
@@ -62,9 +64,15 @@ internal sealed class DatabaseResponseMetadataMiddleware(RequestDelegate next)
         }
 
         var valuesByHeader = properties.ToDictionary(p => p.HeaderName, _ => new List<string>());
+        var processed = 0;
 
         foreach (var item in items)
         {
+            if (processed >= MaxCollectionItems)
+            {
+                break;
+            }
+
             if (item is null)
             {
                 continue;
@@ -78,6 +86,8 @@ internal sealed class DatabaseResponseMetadataMiddleware(RequestDelegate next)
                     valuesByHeader[property.HeaderName].Add(FormatHeaderValue(value));
                 }
             }
+
+            processed++;
         }
 
         foreach (var property in properties)

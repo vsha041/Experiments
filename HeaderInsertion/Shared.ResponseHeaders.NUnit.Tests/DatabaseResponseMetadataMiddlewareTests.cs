@@ -446,6 +446,28 @@ public class DatabaseResponseMetadataMiddlewareTests
     }
 
     [Test]
+    public async Task Invoke_WithListMetadata_CapsCombinedValuesAtTenItems()
+    {
+        var (context, responseFeature) = CreateContext();
+        var items = Enumerable.Range(1, 15)
+            .Select(i => new NameMetadata { Name = $"n{i}", Count = i })
+            .ToList();
+        context.Items["ApiResponseHeaders"] = items;
+
+        await RunMiddlewareAsync(context, responseFeature);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(
+                context.Response.Headers["x-name"].ToString(),
+                Is.EqualTo("n1|n2|n3|n4|n5|n6|n7|n8|n9|n10"));
+            Assert.That(
+                context.Response.Headers["x-count"].ToString(),
+                Is.EqualTo("1|2|3|4|5|6|7|8|9|10"));
+        });
+    }
+
+    [Test]
     public async Task Invoke_WithListOfTypeHavingNoAttributedProperties_DoesNotAddHeaders()
     {
         var (context, responseFeature) = CreateContext();
