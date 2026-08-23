@@ -1,0 +1,13 @@
+{
+  "profiles": {
+    "frontend": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "OTEL_SERVICE_NAME": "frontend"
+      },
+      "applicationUrl": "http://localhost:5051",
+      "dotnetRunMessages": true
+    }
+  }
+}

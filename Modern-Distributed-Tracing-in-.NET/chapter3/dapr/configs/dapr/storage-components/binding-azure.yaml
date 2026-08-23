@@ -1,0 +1,27 @@
+# remove this file if you don't have Azure Blob credentials
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: azureblob
+spec:
+  type: bindings.azure.blobstorage
+  version: v1
+  metadata:
+  - name: storageAccount
+    secretKeyRef:
+      name: azStorageAccount
+      key: azStorageAccount
+  - name: storageAccessKey
+    secretKeyRef:
+      name: azStorageKey
+      key: azStorageKey
+  - name: container
+    value: memes
+  - name: decodeBase64
+    value: true
+  - name: getBlobRetryCount
+    value: 3
+  - name: publicAccessLevel
+    value: none
+auth:
+  secretStore: localsecretstore
