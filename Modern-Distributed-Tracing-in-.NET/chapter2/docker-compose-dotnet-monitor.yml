@@ -30,11 +30,11 @@ services:
     volumes:
       - ./tmp/storage-tmp:/tmp
   mysql:
-    image: docker.io/bitnami/mysql:8.0.33
+    image: docker.io/library/mysql:8.0
     ports:
       - '3306:3306'
     volumes:
-      - 'mysql_data:/bitnami/mysql/data'
+      - 'mysql_data:/var/lib/mysql'
     environment:
       # for demo purposes only, make sure to pass environment securely
       - MYSQL_ROOT_PASSWORD=pwd
