@@ -1,0 +1,16 @@
+.\wslc-dotnet-monitor.ps1 up
+.\wslc-dotnet-monitor.ps1 status
+.\wslc-dotnet-monitor.ps1 logs -Service frontend
+.\wslc-dotnet-monitor.ps1 down
+.\wslc-dotnet-monitor.ps1 down -RemoveVolumes
+.\wslc-dotnet-monitor.ps1 up -SkipBuild
+
+.\wslc-dotnet-monitor.ps1 down
+.\wslc-otel.ps1 up
+.\wslc-otel.ps1 up -SkipBuild
+.\wslc-otel.ps1 status
+.\wslc-otel.ps1 logs -Service frontend
+.\wslc-otel.ps1 logs -Service storage
+.\wslc-otel.ps1 logs -Service jaeger
+.\wslc-otel.ps1 logs -Service Prometheus
+.\wslc-otel.ps1 down -RemoveVolumes
