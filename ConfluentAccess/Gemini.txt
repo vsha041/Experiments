@@ -1,0 +1,114 @@
+using System;
+using System.IdentityModel.Tokens.Jwt;
+using System.Linq;
+using Confluent.Kafka;
+using Microsoft.Identity.Client;
+
+namespace KafkaOAuthInteractiveDemo
+{
+    class Program
+    {
+        // 1. Entra ID Configuration
+        private const string TenantId = "YOUR_TENANT_ID";
+        private const string ClientId = "YOUR_APP_REGISTRATION_CLIENT_ID"; // Must allow public client flows
+        
+        // Scope is usually the App ID URI of the Confluent App Registration followed by /.default
+        private const string Scope = "api://ConfluentDEV-client-id/.default";
+
+        // 2. Confluent Cloud Configuration
+        private const string BootstrapServers = "YOUR_CONFLUENT_ENDPOINT.confluent.cloud:9092";
+        private const string TopicName = "YOUR_TOPIC_NAME";
+
+        static void Main(string[] args)
+        {
+            var producerConfig = new ProducerConfig
+            {
+                BootstrapServers = BootstrapServers,
+                SecurityProtocol = SecurityProtocol.SaslSsl,
+                SaslMechanism = SaslMechanism.OAuthBearer
+            };
+
+            // Create the MSAL Public Client (No secret needed!)
+            var app = PublicClientApplicationBuilder.Create(ClientId)
+                .WithAuthority(new Uri($"https://login.microsoftonline.com/{TenantId}"))
+                .WithDefaultRedirectUri() // Tells MSAL to handle the browser popup locally
+                .Build();
+
+            producerConfig.SetOAuthBearerTokenRefreshHandler((client, config) =>
+            {
+                try
+                {
+                    Console.WriteLine("Opening browser to authenticate with Entra ID...");
+                    
+                    // This pops open the browser for you to log in
+                    var authResult = app.AcquireTokenInteractive(new[] { Scope })
+                                        .ExecuteAsync()
+                                        .GetAwaiter().GetResult();
+
+                    string token = authResult.AccessToken;
+                    
+                    LogJwtToken(token);
+
+                    var expirationMs = new DateTimeOffset(authResult.ExpiresOn).ToUnixTimeMilliseconds();
+                    
+                    client.OAuthBearerSetToken(token, expirationMs, ClientId);
+                    Console.WriteLine("Token successfully passed to Kafka client.");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Failed to acquire token: {ex.Message}");
+                    client.OAuthBearerSetTokenFailure(ex.Message);
+                }
+            });
+
+            using var producer = new ProducerBuilder<Null, string>(producerConfig).Build();
+            
+            try
+            {
+                Console.WriteLine($"\nAttempting to produce a message to '{TopicName}'...");
+                var deliveryReport = producer.ProduceAsync(TopicName, new Message<Null, string> { Value = "Hello from Interactive Login!" })
+                                             .GetAwaiter().GetResult();
+                                             
+                Console.WriteLine($"Success! Message delivered to partition {deliveryReport.Partition}, offset {deliveryReport.Offset}");
+            }
+            catch (ProduceException<Null, string> e)
+            {
+                Console.WriteLine($"Delivery failed: {e.Error.Reason}");
+            }
+        }
+
+        private static void LogJwtToken(string token)
+        {
+            Console.WriteLine("\n--- JWT TOKEN DECODED ---");
+            var handler = new JwtSecurityTokenHandler();
+            
+            if (handler.CanReadToken(token))
+            {
+                var jwtToken = handler.ReadJwtToken(token);
+
+                Console.WriteLine($"Issuer (iss): {jwtToken.Issuer}");
+                Console.WriteLine($"Audience (aud): {jwtToken.Audiences.FirstOrDefault()}");
+                Console.WriteLine($"Expires: {jwtToken.ValidTo} UTC");
+
+                var roles = jwtToken.Claims.Where(c => c.Type == "roles").Select(c => c.Value).ToList();
+                if (roles.Any())
+                {
+                    Console.WriteLine("Roles (App Roles) found in token:");
+                    foreach (var role in roles)
+                    {
+                        Console.WriteLine($"  - {role}");
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("WARNING: No 'roles' claim found in the token.");
+                }
+            }
+            else
+            {
+                Console.WriteLine("Could not decode token as a standard JWT.");
+            }
+            Console.WriteLine("-------------------------\n");
+        }
+    }
+}

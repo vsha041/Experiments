@@ -1,0 +1,287 @@
+/*
+dotnet new console -n ConfluentManagedIdentityTest
+cd ConfluentManagedIdentityTest
+
+dotnet add package Confluent.Kafka --version 2.15.0
+dotnet add package Azure.Identity
+dotnet add package System.IdentityModel.Tokens.Jwt
+*/
+
+using Azure.Core;
+using Azure.Identity;
+using Confluent.Kafka;
+using System.IdentityModel.Tokens.Jwt;
+using System.Text.Json;
+
+// --------------------------------------------------------------------
+// CHANGE THESE VALUES
+// --------------------------------------------------------------------
+
+const string BootstrapServers =
+    "pkc-xxxxx.australiaeast.azure.confluent.cloud:9092";
+
+const string Topic =
+    "your-topic-name";
+
+// Go to:
+// Entra ID
+//   -> App registrations
+//   -> ConfluentDEV
+//   -> Expose an API
+//   -> Application ID URI
+//
+// For example:
+//
+// api://aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+//
+// Then add /.default
+//
+const string EntraScope =
+    "api://aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/.default";
+
+// Confluent Cloud Kafka cluster ID
+const string LogicalCluster =
+    "lkc-xxxxx";
+
+// Confluent Cloud OAuth Identity Pool
+const string IdentityPoolId =
+    "pool-xxxxx";
+
+
+// --------------------------------------------------------------------
+// Azure identity
+// --------------------------------------------------------------------
+
+// Inside AKS with Microsoft Entra Workload Identity configured,
+// DefaultAzureCredential will use the workload identity.
+//
+// AZURE_CLIENT_ID is normally injected/configured for the pod and
+// identifies the user-assigned managed identity.
+var credential = new DefaultAzureCredential();
+
+
+// --------------------------------------------------------------------
+// Kafka configuration
+// --------------------------------------------------------------------
+
+var config = new ProducerConfig
+{
+    BootstrapServers = BootstrapServers,
+
+    SecurityProtocol = SecurityProtocol.SaslSsl,
+    SaslMechanism = SaslMechanism.OAuthBearer,
+
+    ClientId = "managed-identity-debug-test"
+};
+
+
+// --------------------------------------------------------------------
+// Create producer
+// --------------------------------------------------------------------
+
+using var producer = new ProducerBuilder<Null, string>(config)
+
+    .SetOAuthBearerTokenRefreshHandler((client, _) =>
+    {
+        try
+        {
+            Console.WriteLine();
+            Console.WriteLine("========================================");
+            Console.WriteLine("Requesting Entra access token...");
+            Console.WriteLine($"Scope: {EntraScope}");
+            Console.WriteLine("========================================");
+
+            AccessToken token = credential.GetToken(
+                new TokenRequestContext(
+                    new[] { EntraScope }),
+                CancellationToken.None);
+
+            Console.WriteLine();
+            Console.WriteLine(
+                $"Token expires: {token.ExpiresOn:O}");
+
+            // --------------------------------------------------------
+            // Decode JWT
+            // --------------------------------------------------------
+
+            PrintJwt(token.Token);
+
+            // NEVER normally do this.
+            // A JWT access token is a bearer credential.
+            //
+            // Console.WriteLine($"RAW TOKEN: {token.Token}");
+
+            var jwtHandler = new JwtSecurityTokenHandler();
+            var jwt = jwtHandler.ReadJwtToken(token.Token);
+
+            string principal =
+                jwt.Claims
+                    .FirstOrDefault(c => c.Type == "oid")
+                    ?.Value
+                ??
+                jwt.Subject
+                ??
+                "managed-identity";
+
+            Console.WriteLine();
+            Console.WriteLine($"Principal passed to Kafka: {principal}");
+
+            // --------------------------------------------------------
+            // Confluent Cloud SASL extensions
+            // --------------------------------------------------------
+
+            var extensions = new Dictionary<string, string>
+            {
+                ["logicalCluster"] = LogicalCluster,
+                ["identityPoolId"] = IdentityPoolId
+            };
+
+            // Give the Entra token to librdkafka / Confluent.
+            client.OAuthBearerSetToken(
+                token.Token,
+                token.ExpiresOn.ToUnixTimeMilliseconds(),
+                principal,
+                extensions);
+
+            Console.WriteLine(
+                "OAuth token successfully supplied to Kafka client.");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine();
+            Console.WriteLine("TOKEN ERROR:");
+            Console.WriteLine(ex);
+
+            client.OAuthBearerSetTokenFailure(ex.Message);
+        }
+    })
+
+    .SetErrorHandler((_, error) =>
+    {
+        Console.WriteLine();
+        Console.WriteLine(
+            $"Kafka error: {error.Code} - {error.Reason}");
+    })
+
+    .Build();
+
+
+// --------------------------------------------------------------------
+// Produce a message
+// --------------------------------------------------------------------
+
+try
+{
+    Console.WriteLine();
+    Console.WriteLine($"Connecting to:");
+    Console.WriteLine(BootstrapServers);
+
+    Console.WriteLine();
+    Console.WriteLine($"Producing test message to '{Topic}'...");
+
+    var result = await producer.ProduceAsync(
+        Topic,
+        new Message<Null, string>
+        {
+            Value =
+                $"Managed Identity test - {DateTimeOffset.UtcNow:O}"
+        });
+
+    Console.WriteLine();
+    Console.WriteLine("SUCCESS!");
+    Console.WriteLine(
+        $"Message delivered to {result.TopicPartitionOffset}");
+}
+catch (ProduceException<Null, string> ex)
+{
+    Console.WriteLine();
+    Console.WriteLine("KAFKA PRODUCE FAILED");
+    Console.WriteLine($"Code   : {ex.Error.Code}");
+    Console.WriteLine($"Reason : {ex.Error.Reason}");
+}
+catch (Exception ex)
+{
+    Console.WriteLine();
+    Console.WriteLine("FAILED");
+    Console.WriteLine(ex);
+}
+
+
+// --------------------------------------------------------------------
+// JWT debugging
+// --------------------------------------------------------------------
+
+static void PrintJwt(string rawToken)
+{
+    var handler = new JwtSecurityTokenHandler();
+
+    if (!handler.CanReadToken(rawToken))
+    {
+        Console.WriteLine("Returned access token is not a JWT.");
+        return;
+    }
+
+    var jwt = handler.ReadJwtToken(rawToken);
+
+    Console.WriteLine();
+    Console.WriteLine("========================================");
+    Console.WriteLine("JWT HEADER");
+    Console.WriteLine("========================================");
+
+    Console.WriteLine(
+        JsonSerializer.Serialize(
+            jwt.Header,
+            new JsonSerializerOptions
+            {
+                WriteIndented = true
+            }));
+
+    Console.WriteLine();
+    Console.WriteLine("========================================");
+    Console.WriteLine("JWT PAYLOAD");
+    Console.WriteLine("========================================");
+
+    Console.WriteLine(
+        JsonSerializer.Serialize(
+            jwt.Payload,
+            new JsonSerializerOptions
+            {
+                WriteIndented = true
+            }));
+
+    Console.WriteLine();
+    Console.WriteLine("========================================");
+    Console.WriteLine("IMPORTANT CLAIMS");
+    Console.WriteLine("========================================");
+
+    PrintClaim(jwt, "iss");
+    PrintClaim(jwt, "aud");
+    PrintClaim(jwt, "tid");
+    PrintClaim(jwt, "oid");
+    PrintClaim(jwt, "sub");
+    PrintClaim(jwt, "azp");
+    PrintClaim(jwt, "appid");
+    PrintClaim(jwt, "roles");
+    PrintClaim(jwt, "scp");
+}
+
+static void PrintClaim(
+    JwtSecurityToken jwt,
+    string claimName)
+{
+    var claims = jwt.Claims
+        .Where(c => c.Type == claimName)
+        .Select(c => c.Value)
+        .ToArray();
+
+    if (claims.Length == 0)
+    {
+        Console.WriteLine(
+            $"{claimName,-10}: <not present>");
+
+        return;
+    }
+
+    Console.WriteLine(
+        $"{claimName,-10}: {string.Join(", ", claims)}");
+}

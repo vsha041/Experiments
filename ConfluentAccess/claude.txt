@@ -1,0 +1,112 @@
+// Connects to Confluent Cloud using your own Entra ID (Azure AD) login and logs
+// the resulting token's claims, including the "roles" claim used by Confluent's
+// identity pool filters.
+//
+// This uses a delegated (user) login instead of a service principal secret --
+// it relies on your own account already having the necessary access on
+// ConfluentDEV (an app role assignment, or a granted delegated scope).
+
+using System;
+using System.Collections.Generic;
+using System.IdentityModel.Tokens.Jwt;
+using System.Linq;
+using Azure.Core;
+using Azure.Identity;
+using Confluent.Kafka;
+
+// ---- 1. Configuration -- fill these in, or set as environment variables ----
+string confluentDevAppId = Environment.GetEnvironmentVariable("CONFLUENT_APP_ID") ?? "<ConfluentDEV-app-id>";
+string bootstrapServers  = Environment.GetEnvironmentVariable("CONFLUENT_BOOTSTRAP_SERVERS") ?? "<cluster>.confluent.cloud:9092";
+string? identityPoolId   = Environment.GetEnvironmentVariable("CONFLUENT_IDENTITY_POOL_ID"); // optional -- leave unset if you're relying on auto pool mapping
+
+if (confluentDevAppId.StartsWith('<'))
+{
+    Console.WriteLine("Fill in the configuration values at the top of Program.cs (or set the matching env vars) before running.");
+    return;
+}
+
+// ---- 2. Get an Entra ID token scoped to ConfluentDEV, using your own login ----
+// DefaultAzureCredential tries several already-signed-in sources in order
+// (environment, managed identity, Visual Studio Code SSO, an existing
+// `az login` session, ...). If you're logged in via `az login`, this just
+// works with no popup. If none of those apply, swap this line for
+// `new InteractiveBrowserCredential()` to get a login popup instead.
+var credential = new DefaultAzureCredential();
+var tokenRequestContext = new TokenRequestContext(new[] { $"api://{confluentDevAppId}/.default" });
+
+Console.WriteLine("Requesting token from Entra ID using your signed-in account...");
+AccessToken azureToken = credential.GetToken(tokenRequestContext);
+
+// ---- 3. Decode and log the JWT so you can see the roles claim ----
+var handler = new JwtSecurityTokenHandler();
+var parsedToken = handler.ReadJwtToken(azureToken.Token);
+
+Console.WriteLine();
+Console.WriteLine("=== JWT claims ===");
+foreach (var claim in parsedToken.Claims)
+{
+    Console.WriteLine($"  {claim.Type}: {claim.Value}");
+}
+
+var roles = parsedToken.Claims.Where(c => c.Type == "roles").Select(c => c.Value).ToList();
+Console.WriteLine();
+Console.WriteLine(roles.Count > 0
+    ? $"Roles in token: {string.Join(", ", roles)}"
+    : "No 'roles' claim found -- check the app role assignment for your account on ConfluentDEV.");
+Console.WriteLine($"Token expires: {azureToken.ExpiresOn}");
+Console.WriteLine();
+
+// A friendly principal name for Confluent's audit log -- falls back to the
+// token's own "sub" claim if upn/preferred_username aren't present.
+string principalName =
+    parsedToken.Claims.FirstOrDefault(c => c.Type == "preferred_username")?.Value ??
+    parsedToken.Claims.FirstOrDefault(c => c.Type == "upn")?.Value ??
+    parsedToken.Claims.FirstOrDefault(c => c.Type == "sub")?.Value ??
+    "unknown-user";
+
+// ---- 4. Use that token to connect to Confluent Cloud over OAUTHBEARER ----
+var adminConfig = new AdminClientConfig
+{
+    BootstrapServers = bootstrapServers,
+    SecurityProtocol = SecurityProtocol.SaslSsl,
+    SaslMechanism = SaslMechanism.OAuthBearer,
+};
+
+using var adminClient = new AdminClientBuilder(adminConfig)
+    .SetOAuthBearerTokenRefreshHandler((client, _) =>
+    {
+        try
+        {
+            var freshToken = credential.GetToken(tokenRequestContext);
+            var extensions = identityPoolId is null
+                ? null
+                : new Dictionary<string, string> { ["identityPoolId"] = identityPoolId };
+
+            client.OAuthBearerSetToken(
+                freshToken.Token,
+                freshToken.ExpiresOn.ToUnixTimeMilliseconds(),
+                principalName,
+                extensions);
+        }
+        catch (Exception ex)
+        {
+            client.OAuthBearerSetTokenFailure(ex.Message);
+        }
+    })
+    .Build();
+
+Console.WriteLine("Connecting to Confluent Cloud...");
+try
+{
+    var metadata = adminClient.GetMetadata(TimeSpan.FromSeconds(10));
+    Console.WriteLine($"Connected successfully. Broker count: {metadata.Brokers.Count}");
+    Console.WriteLine("Visible topics:");
+    foreach (var topic in metadata.Topics)
+    {
+        Console.WriteLine($"  - {topic.Topic}");
+    }
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"Connection failed: {ex.Message}");
+}
