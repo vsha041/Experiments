@@ -1,0 +1,71 @@
+# check stopped containers
+docker ps -a
+
+# start a specific stopped containers
+docker start <container_id>
+
+# start kafka container with name "kafka"
+docker run -d   --name kafka   -p 9092:9092   apache/kafka:4.0.0
+
+# view current topics
+docker exec kafka /opt/kafka/bin/kafka-topics.sh   --bootstrap-server localhost:9092   --list
+
+# view kafka logs
+docker logs -f kafka (watch)
+docker logs kafka
+
+# create a new topic called test (\ is for bash)
+docker exec kafka /opt/kafka/bin/kafka-topics.sh \
+  --bootstrap-server localhost:9092 \
+  --create \
+  --topic test
+  
+ # create a new topic with additional properties
+ docker exec kafka \
+  /opt/kafka/bin/kafka-topics.sh \
+  --bootstrap-server localhost:9092 \
+  --create \
+  --topic customers \
+  --partitions 3 \
+  --replication-factor 1
+  
+  # list topics
+docker exec kafka /opt/kafka/bin/kafka-topics.sh \
+ --bootstrap-server localhost:9092 \
+ --list
+ 
+ # check if kafka is running
+ docker run --rm --network host \
+  edenhill/kcat:1.7.1 \
+  -b localhost:9092 -L
+  
+ # start consumer
+ docker exec -it kafka \
+  /opt/kafka/bin/kafka-console-consumer.sh \
+  --bootstrap-server localhost:9092 \
+  --topic test \
+  --from-beginning
+  
+ # start producer
+docker exec -it kafka \
+  /opt/kafka/bin/kafka-console-producer.sh \
+  --bootstrap-server localhost:9092 \
+  --topic test 
+  
+ ############################# INSTALL POWERSHELL INSIDE WSL UBUNTU
+sudo apt-get update
+sudo apt-get install -y wget apt-transport-https software-properties-common
+
+source /etc/os-release
+
+wget -q https://packages.microsoft.com/config/ubuntu/$VERSION_ID/packages-microsoft-prod.deb
+
+sudo dpkg -i packages-microsoft-prod.deb
+
+rm packages-microsoft-prod.deb
+
+sudo apt-get update
+
+sudo apt-get install -y powershell
+#############################
+
