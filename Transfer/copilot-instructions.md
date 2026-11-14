@@ -46,3 +46,12 @@
 - Do not modify files until the clarification phase is complete.
 - Distinguish confirmed facts from assumptions.
 - Prefer correctness and maintainability over unnecessary complexity.
+
+## Clarification Format
+
+- When asking clarification questions, use the interactive
+  multiple-choice question UI (e.g. the Ask User Question tool) whenever
+  it is available, instead of listing questions in plain text.
+- Put the recommended option first and mark it "(Recommended)".
+- Ask the most important ones first and follow up with the rest after I answer.
+- If the interactive UI isn't available, fall back to a short numbered list.
