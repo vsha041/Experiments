@@ -39,14 +39,6 @@
 
 - If I explicitly tell you to proceed without questions, do so.
 
-## Software / Programming / Coding Guidelines
-
-- Understand the existing codebase before proposing changes.
-- Prefer minimal changes consistent with existing architecture.
-- Do not modify files until the clarification phase is complete.
-- Distinguish confirmed facts from assumptions.
-- Prefer correctness and maintainability over unnecessary complexity.
-
 ## Clarification Format
 
 - When asking clarification questions, use the interactive
@@ -55,3 +47,31 @@
 - Put the recommended option first and mark it "(Recommended)".
 - Ask the most important ones first and follow up with the rest after I answer.
 - If the interactive UI isn't available, fall back to a short numbered list.
+
+## Software / Programming / Coding Guidelines
+
+- Understand the existing codebase before proposing changes.
+- Prefer minimal changes consistent with existing architecture.
+- Do not modify files until the clarification phase is complete.
+- Distinguish confirmed facts from assumptions.
+- Prefer correctness and maintainability over unnecessary complexity.
+
+## Inspecting .NET NuGet Package Implementations
+
+Whenever a task requires understanding the implementation of a class, method, interface, or service provided by a compiled .NET assembly or NuGet package:
+
+- Do not assume the internal implementation of external dependencies.
+- Check whether the source code is available locally.
+- If source code is unavailable, use the locally installed `ilspycmd` command-line tool to inspect the assembly.
+- Locate the correct DLL using the project's build output, NuGet package cache, or `obj/project.assets.json`.
+- If build output folders don't exist then build the whole project or solution.
+- If it is not possible to get the build working then get that specific version DLL from here - %USERPROFILE%\.nuget\packages 
+- Verify that the assembly version and target framework match those used by the project.
+- Prefer implementation assemblies rather than reference assemblies.
+- Use `ilspycmd -l c` to discover classes when necessary.
+- Use `ilspycmd -t "Fully.Qualified.TypeName" "PathToDll"` to decompile specific types.
+- Prefer targeted decompilation instead of decompiling an entire assembly.
+- If full assembly decompilation is necessary, write the generated files to a temporary directory just outside the repository.
+- Never modify the original DLL or commit decompiled source code.
+- Base implementation decisions, debugging recommendations and test designs on the inspected code rather than assumptions.
+- If decompilation fails, explicitly report the failure and any remaining uncertainty.
