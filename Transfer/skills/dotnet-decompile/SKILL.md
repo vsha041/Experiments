@@ -93,6 +93,5 @@ Verify availability with `ilspycmd --version`. If unavailable, notify the user b
 - Never print an entire assembly to the conversation; avoid dumping `project.assets.json` or unfiltered type listings.
 - Do not modify original assemblies or commit generated code.
 - Do not send proprietary assemblies, decompiled code, or diagnostics to external services without authorization.
-- 
 - Avoid repeated decompilation of the same unchanged assembly when existing temporary output is sufficient.
 - Report failures and evidence limitations rather than guessing.
