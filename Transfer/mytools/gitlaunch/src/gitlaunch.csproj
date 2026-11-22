@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    gitlaunch: runs a Git for Windows (MSYS2) tool with its arguments re-quoted so they
+    arrive unchanged. Built and installed by ..\install.ps1 (needs only the .NET 10 SDK).
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>gitlaunch</AssemblyName>
+    <RootNamespace>GitLaunch</RootNamespace>
+
+    <!-- Framework-dependent single file: one small exe, runs on the installed .NET 10
+         runtime (or the next newer major version if 10 isn't installed). -->
+    <SelfContained>false</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <RollForward>Major</RollForward>
+    <DebugType>embedded</DebugType>
+
+    <!-- Faster startup: this exe runs once per tool call. Most of the ~50 ms per call is
+         .NET itself starting. PublishReadyToRun was tried: it saved only 2-3 ms and makes
+         the build download Crossgen2 from NuGet, so it is left off. -->
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+</Project>
